@@ -1,0 +1,68 @@
+{
+  "paths": {
+    "input_directory": "Z:/Projects/2024-01 REFTEP-REP/",
+    "Feature_savepath": "Z:/Projects/2024-01 REFTEP-REP/Features/",
+    "Model_savepath": "Z:/Projects/2024-01 REFTEP-REP/Models/"
+  },
+
+
+  "misc": {
+    "initial_random_seed": 7,
+    "loop_random_seed": 87,
+    "random_state_multiplier": 121
+  },
+
+  "feature_names": [
+    "Source",
+    "SourceCon",
+    "PAC",
+    "Power",
+    "irasa",
+    "Asymmetry",
+    "Hjorth_Power",
+    "Hjorth_Phase",
+    "M1_S1_power_asymmetry",
+    "Hjorth_Con",
+    "Hjorth_PAC",
+    "hjorth_fractal"
+  ],
+
+  "condition_map": {
+    "Low": 0,
+    "High": 1
+  },
+  "classifiers": ["SVM", "LogReg", "RF"],
+  "cross_validation": {
+    "n_repetitions": 1,
+    "k_out": 5,
+    "k_in": 10,
+    "random_state_multiplier": 124
+  },
+  "feature_selection": {
+    "n_feat_mRMR1": [40, 50, 60, 70],
+    "max_mRMR_features": 70,
+    "min_features_to_select": 1
+  },
+  "SVM": {
+    "exponent_range": [-5, 1.0],
+    "C_base": 10,
+    "kernels": ["linear"],
+    "tol": 1e-3,
+    "cache_size": 4000
+  },
+  "LogReg": {
+    "exponent_range": [-5, 1.0], 
+    "C_base": 10,
+    "max_iter": 50000
+  },
+  "RF": {
+    "trees": {
+      "type": "int",
+      "value": [10, 100, 500, 1000]
+    },
+    "depth": {
+      "type": "int",
+      "value": [1,2]
+    } 
+  }
+}
