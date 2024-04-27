@@ -11,7 +11,7 @@ from src.mRMR_feature_select import mRMR_feature_select
 from src.helper_functions import * 
 
 # Load the configuration file
-with open("config_MEP_Decdoding.json", "r") as file:
+with open("config_MEP_Decoding.json", "r") as file:
     config = json.load(file)
 
 # Access paths
