@@ -1,8 +1,9 @@
 {
   "paths": {
-    "input_directory": "Z:/Projects/2023-07 REFTEP/",
-    "Feature_savepath": "Z:/Projects/2023-07 REFTEP/Features/",
-    "Model_savepath": "Z:/Projects/2023-07 REFTEP/Models/"
+    "input_directory": "",
+    "Feature_savepath": "",
+    "Model_savepath": "",
+    "Permutation_test_savepath": ""
   },
 
 
@@ -35,7 +36,7 @@
   "cross_validation": {
     "n_repetitions": 1,
     "k_out": 5,
-    "k_in": 10,
+    "k_in": 5,
     "random_state_multiplier": 124
   },
   "feature_selection": {
@@ -64,5 +65,8 @@
       "type": "int",
       "value": [1,2]
     } 
+  },
+  "permutation_test": {
+    "num_permutations": 1000
   }
 }
