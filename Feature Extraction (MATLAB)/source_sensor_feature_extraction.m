@@ -5,10 +5,10 @@ clc
 
 %% Preparation
 
-addpath 'C:\Users\Lisa Haxel\Documents\REFTEP\MATLAB_code\functions';
+addpath '';
 
 % Set paths to relevant toolboxes
-TOOLBOXPATH = 'Z:\Projects\2023-07 HAXELPHD\matlab_toolboxes';
+TOOLBOXPATH = '';
 addpath(fullfile(TOOLBOXPATH, 'eeglab2023.1'));
 addpath(fullfile(TOOLBOXPATH, 'fieldtrip-20230716'));
 addpath(fullfile(TOOLBOXPATH, 'hbf_distribution_open_v170624'));
@@ -18,46 +18,37 @@ addpath(fullfile(TOOLBOXPATH, 'plotroutines_v170706'));
 % Initialize fieldtrip
 ft_defaults
 
-input_directory = 'C:\Users\Lisa Haxel\Documents\REFTEP';
-output_directory = 'C:\Users\Lisa Haxel\Documents\REFTEP\Features\';
+input_directory = '';
+output_directory = '';
 
 RdBuReversed = load(fullfile(input_directory, 'RdBuReversed.mat'));
 RdBuReversed = RdBuReversed.RdBuReversed;
 
-dataTable = readtable(fullfile(input_directory, 'REFTEP_list.xlsx'), 'Basic', 1);
-%dataTable = readtable(fullfile(input_directory, 'SCREEN3_list.xlsx'), 'Basic', 1);
+dataTable = readtable(fullfile(input_directory, 'subjects_list.xlsx'), 'Basic', 1);
 
-%subjects = [1:8, 18:29];
-subjects = [1];
+subjects = [0:49];
 
 % Feature Extraction
 for subnum = subjects
     fprintf('Subject %d ', subnum)
-
-    % Check if subnum is greater than 18
-    if subnum > 18
-        % Calculate the row index in the dataTable
-        % Assuming REFTEP_018 is at row 9, and it corresponds to subnum 18
-        rowIndex = 9 + (subnum - 18);
-        
-        % Check if rowIndex is within the bounds of the dataTable
-        if rowIndex > size(dataTable, 1)
-            warning('Row index for Subject %d is out of bounds. Skipping...', subnum);
-            continue;
-        end
-
-        % Extract data for the specified row
-        dataTableSub = dataTable(rowIndex, :);
-    else
-        % For REFTEP with subnum <= 18
-        % Load data directly from the dataTable
-        dataTableSub = dataTable(subnum, :);
-    end
-
+    dataTableSub = dataTable(subnum, :);
     load(char(dataTableSub.headmodel))
     load(char(dataTableSub.cleandata))
     
     epochs = epochs2;
+
+    % Structure of epochs2:
+    % epochs2: structure containing cleaned and aligned EEG/TMS data with fields:
+    %   .trial      : [1000×400×ch double] - 3D matrix of timepoints × trials × channels
+    %   .time       : [1×1000 double] - time vector in seconds with respect to TMS pulse, -1.0050 to -0.0060.
+    %   .dimord     : 'time_rpt_chan' - data dimensions (.trial) are timepoints x trials x channels
+    %   .label      : {113×1 cell} - channel labels included in analysis
+    %   .cfg        : [1×1 struct] - information about previous preprocessing operations
+    %   .sampleinfo : [400×2 double] - sample boundaries (start/end) for each trial
+    %   .trialSorting: [400×1 double] - original trial indices
+    %   .trialLabels : [400×1 double] - binary labels (1: high MEPs[1-200], 0: low MEPs[201-400])
+    %   .mepsize     : [400×1 double] - MEP amplitudes in mV
+    %   .fsample     : 1000 - sampling rate in Hz
 
     %       ______   ______  __    __ _______   ______  ________      _______  ________  ______   ______  __    __  ______  ________ _______  __    __  ______  ________ ______  ______  __    __ 
     %  /      \ /      \|  \  |  \       \ /      \|        \    |       \|        \/      \ /      \|  \  |  \/      \|        \       \|  \  |  \/      \|        \      \/      \|  \  |  \
@@ -79,7 +70,7 @@ for subnum = subjects
     % ROI EXTRACTION
     
     % Get vertex indices of interest
-    atlasGLASSER = load('C:\Users\Lisa Haxel\Documents\REFTEP\MATLAB_code\Feature_Extraction\Glasser_parcellation.mat');
+    atlasGLASSER = load('...\Glasser_parcellation.mat');
     atlasGLASSER = atlasGLASSER.atlasGLASSER;
    
     % Define the base ROIs as individual strings
