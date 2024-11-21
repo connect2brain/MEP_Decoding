@@ -1,4 +1,4 @@
-#### Import relevent libraries ####
+#### Import relevant libraries ####
 from src.Dependencies import *
 
 
@@ -29,7 +29,7 @@ def load_ml_features_df(Feature_savepath: str, subnum: int) -> pd.DataFrame:
         """
         Read a .mat file and return its contents as a pandas DataFrame.
         """
-        file_path = f"{Feature_savepath}{feature_name}_df_Subject_{subnum}.mat"
+        file_path = f"{Feature_savepath}{feature_name}_df_Subject_{subnum:03d}.mat" #for original
         mat_data = scipy.io.loadmat(file_path, squeeze_me=True)
 
         # Find the key that contains the actual data, ignoring meta keys
@@ -183,7 +183,7 @@ def load_ml_sensor_features_df(Feature_savepath: str, subnum: int) -> pd.DataFra
         """
         Read a .mat file and return its contents as a pandas DataFrame.
         """
-        file_path = f"{Feature_savepath}{feature_name}_df_Subject_{subnum}.mat"
+        file_path = f"{Feature_savepath}{feature_name}_df_Subject_{subnum:03d}.mat" #for original
         mat_data = scipy.io.loadmat(file_path, squeeze_me=True)
 
         # Find the key that contains the actual data, ignoring meta keys
@@ -305,6 +305,760 @@ def load_ml_sensor_features_df(Feature_savepath: str, subnum: int) -> pd.DataFra
     EEG_features_df["Condition"] = EEG_features_df["Condition"].map(condition_map)
 
     return EEG_features_df
+
+#### time-based classification ####
+def sort_by_time(EEG_features_df, subnum):
+    """
+    Sorts the EEG features DataFrame by trial order for time-based classification.
+
+    :param EEG_features_df: DataFrame containing the EEG features.
+    :param subnum: Integer indicating the subject number.
+    :return: DataFrame sorted by trial order with reset index.
+    """
+    # Import necessary library
+    from scipy.io import loadmat
+
+    # Load the configuration file to access paths
+    with open("config.json", "r") as file:
+        config = json.load(file)
+    
+    # Access base directory from config
+    base_directory = config["paths"]["input_directory"]
+    
+    # Format the file name with the adjusted subject number
+    formatted_file_name = f'final_data_Subject_{subnum:03d}.mat'
+
+    # Construct the complete file path
+    file_path = os.path.join(base_directory, 'data', 'preprocessed', formatted_file_name)
+
+    # Load the .mat file
+    mat_data = loadmat(file_path)
+
+    # Extract trial_order
+    trial_order = np.array(mat_data['epochs2']['trialSorting'][0, 0]).flatten()
+
+    # Set the trial_order as the index of the DataFrame
+    EEG_features_df['Trial_index'] = trial_order
+
+    # Sort the DataFrame based on the Trial_index
+    EEG_features_df_sorted = EEG_features_df.sort_values('Trial_index').reset_index(drop=True)
+
+    return EEG_features_df_sorted
+
+
+#### Analysis pipeline for different configurations ####
+def run_analysis_pipeline(subjects, Feature_savepath, **condition_params):	
+    """
+    Runs feature selection and classification pipeline for multiple subjects and feature set configurations.
+
+    :param subjects: List of subject numbers to analyze.
+    :param Feature_savepath: String indicating where feature data is stored.
+    :param condition_params: Dictionary of condition parameters for analysis.
+    :return: None
+    """
+    for subnum in subjects:
+        print(f"Starting Subject {subnum}")
+        EEG_features_df = load_subject_data(subnum, Feature_savepath, sensor_source=condition_params.get('sensor_source', False))
+        if EEG_features_df is None:
+            continue
+
+        # Apply conditions
+        if condition_params.get('condition') == '64_channels':
+            EEG_features_df = filter_channels(EEG_features_df, channels_64)
+
+        # Sort by time if time-based classification
+        if condition_params.get('time_based', False):
+            EEG_features_df = sort_by_time(EEG_features_df, subnum)
+        
+        # Pass condition_params to the function
+        run_feature_selection_and_classification(EEG_features_df, subnum, condition_params)
+
+#### Permutation pipeline for different configurations ####
+def run_permutation_pipeline(subjects, Feature_savepath, **condition_params):	
+    """
+    Runs permutation testing on trained models for multiple subjects and feature set configurations.
+
+    :param subjects: List of subject numbers to analyze.
+    :param Feature_savepath: String indicating where feature data is stored.
+    :param condition_params: Dictionary of condition parameters for analysis.
+    :return: None
+    """
+    for subnum in subjects:
+        print(f"Starting Subject {subnum}")
+        EEG_features_df = load_subject_data(subnum, Feature_savepath, sensor_source=condition_params.get('sensor_source', False))
+        if EEG_features_df is None:
+            continue
+
+        # Apply conditions
+        if condition_params.get('condition') == '64_channels':
+            EEG_features_df = filter_channels(EEG_features_df, channels_64)
+
+        # Sort by time if time-based classification
+        if condition_params.get('time_based', False):
+            EEG_features_df = sort_by_time(EEG_features_df, subnum)
+        
+        # Pass condition_params to the function
+        run_permutation_test(EEG_features_df, subnum, condition_params)
+
+# Define channel sets for the analysis conditions
+channels_126 = set(['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7',
+                    'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Cz', 'Pz', 'Iz', 'FC1', 'FC2',
+                    'CP1', 'CP2', 'FC5', 'FC6', 'CP5', 'CP6', 'FT9', 'FT10', 'TP9', 'TP10',
+                    'F1', 'F2', 'C1', 'C2', 'P1', 'P2', 'AF3', 'AF4', 'FC3', 'FC4', 'CP3',
+                    'CP4', 'PO3', 'PO4', 'F5', 'F6', 'C5', 'C6', 'P5', 'P6', 'AF7', 'AF8',
+                    'FT7', 'FT8', 'TP7', 'TP8', 'PO7', 'PO8', 'Fpz', 'AFz', 'POz', 'Oz',
+                    'FFC1h', 'FFC2h', 'CCP1h', 'CCP2h', 'AFF1h', 'AFF2h', 'PPO1h', 'PPO2h',
+                    'FCC3h', 'FCC4h', 'CPP3h', 'CPP4h', 'FFC5h', 'FFC6h', 'CCP5h', 'CCP6h',
+                    'FTT7h', 'FTT8h', 'TPP7h', 'TPP8h', 'PPO9h', 'PPO10h', 'OI1h', 'OI2h'])
+
+channels_64 = set(['AF3', 'AF4', 'AF7', 'AF8', 'Afz', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6',
+                   'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'Cz', 'F1', 'F2', 'F3', 'F4',
+                   'F5', 'F6', 'F7', 'F8', 'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'FCz',
+                   'FT10', 'FT7', 'FT8', 'FT9', 'Fp1', 'Fp2', 'Fpz', 'Fz', 'O1', 'O2', 'Oz',
+                   'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'PO3', 'PO4', 'PO7', 'PO8',
+                   'POz', 'Pz', 'T7', 'T8', 'TP10', 'TP7', 'TP8', 'TP9'])
+
+#### Filter channels ####
+def filter_channels(df, channel_set):
+    """
+    Removes features from channels that are not part of the specified channel set.
+
+    :param df: DataFrame containing EEG data.
+    :param channel_set: Set of channels to keep in the DataFrame.
+    :return: Filtered DataFrame containing only the specified channels.
+    """
+    channels_to_exclude = channels_126 - channel_set
+    pattern_parts = [f'(?:^|_){re.escape(channel)}(?:$|_)' for channel in channels_to_exclude]
+    channels_to_exclude_patterns = '|'.join(pattern_parts)
+    return df.loc[:, ~df.columns.str.contains(channels_to_exclude_patterns, regex=True)]
+
+#### Load subject data ####
+def load_subject_data(subnum, feature_savepath, sensor_source=False):
+    """
+    Loads subject data from the provided path.
+
+    :param subnum: Integer indicating the subject number.
+    :param feature_savepath: Path where feature data is stored.
+    :param sensor_source: Boolean indicating if the source features should be loaded.
+    :return: DataFrame containing the EEG features for the subject, or None if not found.
+    """
+    try:
+        if sensor_source:
+            EEG_features_df = load_ml_features_df(feature_savepath, subnum)
+        else:
+            EEG_features_df = load_ml_sensor_features_df(feature_savepath, subnum)
+    except FileNotFoundError:
+        print(f"Subject {subnum} not found. Skipping to the next subject.")
+        return None
+    return EEG_features_df
+
+
+#### Feature Selection and Classification ####
+def run_feature_selection_and_classification(EEG_features_df, subnum, condition_params):
+    """
+    Performs feature selection and classification on the provided EEG features DataFrame for a given subject.
+
+    :param EEG_features_df: DataFrame containing EEG features.
+    :param subnum: Integer indicating the subject number.
+    :param condition_params: Dictionary of condition parameters.
+    :return: None
+    """
+    # Load the configuration file
+    with open("config.json", "r") as file:
+        config = json.load(file)
+
+    # Access paths and settings from the configuration file
+    Model_savepath = config["paths"]["Model_savepath"]
+    EEG_features_name_list = config["feature_names"]
+    n_repetitions = config["cross_validation"]["n_repetitions"]
+    k_out = config["cross_validation"]["k_out"]
+    k_in = config["cross_validation"]["k_in"]
+    random_state_multiplier = config["cross_validation"]["random_state_multiplier"]
+    n_feat_mRMR1 = config["feature_selection"]["n_feat_mRMR1"]
+    max_mRMR_features = config["feature_selection"]["max_mRMR_features"]
+    min_features_to_select = config["feature_selection"]["min_features_to_select"]
+    SVM_exponent_range = config["SVM"]["exponent_range"]
+    SVM_C_base = config["SVM"]["C_base"]
+    SVM_kernels = config["SVM"]["kernels"]
+    LogReg_exponent_range = config["LogReg"]["exponent_range"]
+    LogReg_C_base = config["LogReg"]["C_base"]
+    RF_trees = [int(x) for x in config["RF"]["trees"]["value"]]
+    RF_depth = [int(x) for x in config["RF"]["depth"]["value"]]
+    n_models = len(config["classifiers"])
+
+    # Define the target and stratification variables
+    Target = "Condition"  # The label we are trying to predict
+
+    # List of non-feature, non-target columns
+    non_feature_cols = ["Trial_index"]
+
+    # Exclude the target and any non-feature columns from standardization
+    feature_cols = [col for col in EEG_features_df.columns if col != Target and col not in non_feature_cols]
+
+    # Set a threshold for outlier detection based on the IQR method
+    threshold = 1.5  # Adjust the threshold as needed
+
+    # Calculate IQR for all features at once for the entire dataset
+    Q1 = EEG_features_df[feature_cols].quantile(0.25)
+    Q3 = EEG_features_df[feature_cols].quantile(0.75)
+    IQR = Q3 - Q1
+
+    # Define the lower and upper bounds for outlier detection
+    lower_bound = Q1 - threshold * IQR
+    upper_bound = Q3 + threshold * IQR
+
+    # Identify outliers
+    outliers_lower = EEG_features_df[feature_cols] < lower_bound
+    outliers_upper = EEG_features_df[feature_cols] > upper_bound
+
+    # Replace outliers with the appropriate bounds
+    for feature in feature_cols:
+        EEG_features_df.loc[outliers_lower[feature], feature] = lower_bound[feature]
+        EEG_features_df.loc[outliers_upper[feature], feature] = upper_bound[feature]
+
+    # Handle shuffling if not time-based classification
+    if condition_params.get('shuffle', False) and not condition_params.get('time_based', False):
+        # Shuffle the labels
+        EEG_features_df[Target] = EEG_features_df[Target].sample(frac=1, random_state=42).reset_index(drop=True)
+        print("Labels have been shuffled.")
+
+    # Initialize arrays to store results
+    accuracy_arr = np.zeros((n_repetitions, k_out, n_models, 3))
+    model_par = []
+    final_models = []
+    final_features = []
+    final_y_preds = []
+
+     # Apply Hjorth-only filtering if needed
+    if condition_params.get('hjorth_only', False):
+        EEG_features_name_list = [
+            feature for feature in config["feature_names"]
+            if "hjorth" in feature.lower()  # Convert feature name to lowercase before checking
+        ]
+
+    # Prepare Cross-Validation Splits
+    if condition_params.get('time_based', False):
+        # For time-based classification, use a single temporal split
+        n_trials = EEG_features_df.shape[0]
+        n_train_trials = int(n_trials * 0.8)  # For example, use 80% for training
+        train_indices = np.arange(n_train_trials)
+        test_indices = np.arange(n_train_trials, n_trials)
+        Outer_CV = [(train_indices, test_indices)]
+        n_repetitions = 1  # Only one repetition in time-based split
+        k_out = 1  # Only one outer fold
+        print("Using time-based CV split.")
+    else:
+        # Prepare Stratified K-Folds for all repetitions
+        Outer_CV = []
+
+        # Prepare the StratifiedKFold splits beforehand
+        for rep in range(n_repetitions):
+            skf = StratifiedKFold(n_splits=k_out, shuffle=True, random_state=rep * random_state_multiplier)
+            splits = list(skf.split(EEG_features_df[feature_cols], EEG_features_df[Target]))
+            Outer_CV.append(splits)
+        print("Using standard stratified CV splits.")
+
+    # Capture the start time
+    start_time = datetime.now()
+
+    for rep in range(n_repetitions):
+        # The outer fold CV has already been saved as lists
+        print(f"---- Starting with Outer Fold Repetition {rep + 1}")
+        if condition_params.get('time_based', False):
+            Outer_CV_rep = Outer_CV  # Only one split for time-based
+        else:
+            Outer_CV_rep = Outer_CV[rep]
+
+        # Pre-allocate memory
+        model_par0 = []
+        final_models0 = []
+        final_features0 = []
+        final_y_preds0 = []
+        Outer_counter = 0
+
+        # Loop through each outer fold
+        for train_index, test_index in Outer_CV_rep:
+            # Part 1 - Data Preparation and Standardization
+
+            # Call the data preparation and standardization function
+            X_train, X_test, y_train, y_test, scaler = prepare_and_standardize_data(
+                train_index, test_index, EEG_features_df, feature_cols, non_feature_cols, 'Condition'
+            )
+
+            # Shuffle the training data indices to ensure randomness
+            if condition_params.get('shuffle', False):
+                shuffled_indices = np.random.permutation(len(y_train))
+                X_train = X_train.iloc[shuffled_indices].reset_index(drop=True)
+                y_train = y_train.iloc[shuffled_indices].reset_index(drop=True)
+
+            # Check alignment and reset indices
+            X_train, y_train, X_test, y_test = check_alignment_and_reset_indices(X_train, y_train, X_test, y_test)
+
+            # Call the mRMR feature selection function
+            initial_selected_features = perform_mRMR_feature_selection(
+                X_train, y_train, EEG_features_name_list, max_mRMR_features
+            )
+
+            # Filter the training set to include only the features selected in the initial step
+            X_train_filtered = X_train[initial_selected_features]
+
+            X_train_filtered, y_train = check_alignment_and_reset_indices_train2(X_train_filtered, y_train)
+
+            # Print the number of features selected after filtering
+            print(f"{len(initial_selected_features)} features are left after first round of mRMR filtering")
+            print("Shape of X_train_filtered:", X_train_filtered.shape)
+
+            # Part 2 - Feature Selection and Model Training
+
+            # Initialization
+            C_parameter_SVM, C_parameter_LogReg, trees, depth, val_acc_svm, val_feat_svm, val_feat_import_svm, \
+            val_acc_logreg, val_feat_logreg, val_feat_import_logreg, val_acc_rf, val_feat_rf, val_feat_import_rf, \
+            kernels = initialize_hyperparameters_and_accuracy_arrays(
+                SVM_exponent_range, SVM_C_base, LogReg_exponent_range, LogReg_C_base,
+                RF_trees, RF_depth, n_feat_mRMR1, max_mRMR_features, SVM_kernels
+            )
+
+            # Initialize tracking variables for SVM
+            best_val_accuracy_svm = 0
+            best_hyperparameters_svm = {'C': None, 'kernel': None}
+            best_features_svm = None
+            best_svm_feature_importances = None
+
+            # Initialize tracking variables for Logistic Regression
+            best_val_accuracy_logreg = 0
+            best_hyperparameters_logreg = {'C': None}
+            best_features_logreg = None
+            best_logreg_feature_importances = None
+
+            # Initialize tracking variables for Random Forest
+            best_val_accuracy_rf = 0
+            best_rf_params = {'n_estimators': None, 'max_depth': None}
+            best_features_rf = None
+            best_rf_feature_importances = None
+
+            # Loop through the number of features as determined by mRMR
+            for num_features_index in range(len(n_feat_mRMR1)):
+                # mRMR and dataset filtering
+                X_train_mRMR_subset, selected_mRMR_features = rerun_mRMR_and_filter_dataset(
+                    X_train_filtered, y_train, initial_selected_features,
+                    n_feat_mRMR1[num_features_index],
+                    {'K_MAX': 1000, 'n_jobs': -1, 'verbose': False}
+                )
+                print(f'Finished mRMR feature selection for set {num_features_index + 1}')
+
+                # Inner Fold Split for Cross-Validation
+                if condition_params.get('time_based', False):
+                    # For time-based classification, use a time-based split for inner CV
+                    n_train_samples = X_train_mRMR_subset.shape[0]
+                    n_inner_train = int(n_train_samples * 0.8)
+                    inner_train_indices = np.arange(n_inner_train)
+                    inner_val_indices = np.arange(n_inner_train, n_train_samples)
+                    inner_cv_splits = [(inner_train_indices, inner_val_indices)]
+                    print("Using time-based inner CV split.")
+                else:
+                    # Create stratified K-fold splits for inner CV
+                    inner_cv_splits = create_inner_folds(
+                        X_train_mRMR_subset, y_train, k_in, rep, random_state_multiplier
+                    )
+
+                # SVM Hyperparameter Optimization
+                optimal_C, optimal_kernel, selected_feature_names, feature_importances, val_acc = \
+                    find_optimal_svm_parameters_scaled(
+                        X_train_mRMR_subset, y_train, C_parameter_SVM, SVM_kernels, inner_cv_splits, min_features_to_select
+                    )
+
+                # Check if the current validation accuracy is the best
+                if val_acc > best_val_accuracy_svm:
+                    best_val_accuracy_svm = val_acc
+                    best_hyperparameters_svm = {'C': optimal_C, 'kernel': optimal_kernel}
+                    best_features_svm = selected_feature_names
+                    best_svm_feature_importances = feature_importances
+
+                # Logistic Regression
+                # Define the range of features to select from
+                k_features = np.arange(1, n_feat_mRMR1[num_features_index] + 1, 1)
+                k_features_tuple = (k_features[0], k_features[-1])
+
+                # Perform logistic regression with SFS
+                _, optimal_features, logreg_coef_normalized, best_C, _, best_val_acc_logreg = \
+                    logistic_regression_sfs_scaled(
+                        X_train_mRMR_subset, y_train, C_parameter_LogReg, k_features_tuple, inner_cv_splits
+                    )
+
+                # Check if the current validation accuracy is the best for LogReg
+                if best_val_acc_logreg > best_val_accuracy_logreg:
+                    best_val_accuracy_logreg = best_val_acc_logreg
+                    best_hyperparameters_logreg = {'C': best_C}
+                    best_features_logreg = optimal_features
+                    best_logreg_feature_importances = logreg_coef_normalized
+
+                # Random Forest
+                # Random Forest Training and Validation
+                rf_results = train_validate_rf_with_scaling(
+                    X_train_mRMR_subset, y_train, trees=RF_trees, depth=RF_depth, cv_splits=inner_cv_splits
+                )
+
+                # Extract the results
+                rf_model = rf_results['model']
+                best_rf_score = rf_results['score']
+                best_rf_params = rf_results['params']
+                rf_feature_importances = rf_results['feature_importances']
+                t_chosen = best_rf_params['n_estimators']
+                d_chosen = best_rf_params['max_depth']
+
+                # Check if the current validation accuracy (score) is the best for RF
+                if best_rf_score > best_val_accuracy_rf:
+                    best_val_accuracy_rf = best_rf_score
+                    best_rf_params = {'n_estimators': t_chosen, 'max_depth': d_chosen}
+                    best_rf_feature_importances = rf_feature_importances
+                    best_features_rf = selected_mRMR_features
+
+            # Train and evaluate the final SVM model using the best configuration
+            if best_hyperparameters_svm['C'] is not None and best_hyperparameters_svm['kernel'] is not None:
+                svm_model, train_accuracy_svm, test_accuracy_svm = train_evaluate_final_svm(
+                    X_train_mRMR_subset[best_features_svm], y_train,
+                    X_test[best_features_svm], y_test,
+                    best_hyperparameters_svm['C'], best_hyperparameters_svm['kernel']
+                )
+                print(f"Optimized SVM Model - Training Accuracy: {train_accuracy_svm:.2f}, Test Accuracy: {test_accuracy_svm:.2f}")
+                print(f"Optimized Features: {len(best_features_svm)}")
+            else:
+                print("No optimal SVM model configuration found.")
+
+            # Train and evaluate the final Logistic Regression model using the best configuration
+            if best_hyperparameters_logreg['C'] is not None:
+                LogReg_model, train_accuracy_logreg, test_accuracy_logreg = train_evaluate_logreg(
+                    X_train, y_train, X_test, y_test, best_C, best_features_logreg
+                )
+                print(f"Logistic Regression Training Accuracy: {train_accuracy_logreg:.2f}, Test Accuracy: {test_accuracy_logreg:.2f}")
+                print(f"SFS+LogReg: Number of Features Chosen: {len(best_features_logreg)}")
+            else:
+                print("No optimal Logistic Regression model configuration found.")
+
+            # Train and evaluate the final Random Forest model using the best configuration
+            if best_rf_params['n_estimators'] is not None and best_rf_params['max_depth'] is not None:
+                rf_eval_results = evaluate_rf_model(
+                    X_train_mRMR_subset, y_train, X_test, y_test, best_features_rf,
+                    best_rf_params['n_estimators'], best_rf_params['max_depth']
+                )
+
+                train_acc_rf = rf_eval_results['train_accuracy']
+                test_acc_rf = rf_eval_results['test_accuracy']
+                print(f"Optimized Random Forest Model - Training Accuracy: {train_acc_rf:.2f}, Test Accuracy: {test_acc_rf:.2f}")
+            else:
+                print("No optimal Random Forest model configuration found.")
+
+            # Store results
+            SVM_model_par = [best_hyperparameters_svm['C'], best_hyperparameters_svm['kernel'], len(best_features_svm)]
+            SVM_y_pred = [
+                svm_model.predict(X_train_mRMR_subset[best_features_svm]),
+                svm_model.predict(X_test[best_features_svm])
+            ]
+            final_features0.append(['SVM', best_features_svm, best_svm_feature_importances])
+            accuracy_arr[rep, Outer_counter, 0, :] = [train_accuracy_svm, best_val_accuracy_svm, test_accuracy_svm]
+
+            LogReg_model_par = [best_C, len(best_features_logreg)]
+            LogReg_y_pred = [
+                LogReg_model.predict(X_train_mRMR_subset[best_features_logreg]),
+                LogReg_model.predict(X_test[best_features_logreg])
+            ]
+            final_features0.append(['LogReg', best_features_logreg, best_logreg_feature_importances])
+            accuracy_arr[rep, Outer_counter, 1, :] = [train_accuracy_logreg, best_val_accuracy_logreg, test_accuracy_logreg]
+
+            RF_model_par = [t_chosen, d_chosen, len(best_features_rf)]
+            RF_y_pred = [rf_eval_results['train_predictions'], rf_eval_results['test_predictions']]
+            accuracy_arr[rep, Outer_counter, 2, :] = [train_acc_rf, best_rf_score, test_acc_rf]
+
+            # Save all models and parameters
+            model_par0.append([SVM_model_par, LogReg_model_par, RF_model_par])
+            final_models0.append([svm_model, LogReg_model, rf_model])
+            final_y_preds0.append([SVM_y_pred, LogReg_y_pred, RF_y_pred])
+            final_features0.append(['RF', best_features_rf, best_rf_feature_importances])
+
+            # Move counter
+            Outer_counter += 1
+            print(f"Finished outer fold {Outer_counter} out of {k_out} for rep: {rep + 1}")
+
+        # Append results to lists
+        model_par.append(model_par0)
+        final_models.append(final_models0)
+        final_features.append(final_features0)
+        final_y_preds.append(final_y_preds0)
+
+        # Aggregate all results into a single list
+        Rep_mRMR2_SVM_LogReg_RF = [accuracy_arr, model_par, final_models, final_features, final_y_preds]
+
+        # Construct a descriptive filename based on the condition parameters
+        condition_strings = []
+        if condition_params['condition'] == '64_channels':
+            condition_strings.append('64ch')
+        elif condition_params['condition'] == '126_channels':
+            condition_strings.append('126ch')
+
+        if condition_params.get('shuffle', False):
+            condition_strings.append('shuffled')
+
+        if condition_params.get('time_based', False):
+            condition_strings.append('time_based')
+
+        if condition_params.get('hjorth_only', False):
+            condition_strings.append('hjorth')
+
+        if condition_params.get('sensor_source', False):
+            condition_strings.append('sensor_source')
+
+        # Join the condition strings with underscores
+        condition_suffix = '_'.join(condition_strings) if condition_strings else 'default'
+
+        # Save the results with the condition suffix in the filename
+        save_filename = f"Sub_{subnum}_{condition_suffix}_results.pkl"
+        save_path = os.path.join(Model_savepath, save_filename)
+
+        with open(save_path, "wb") as filehandle:
+            pickle.dump(Rep_mRMR2_SVM_LogReg_RF, filehandle)
+
+        # Capture the end time
+        end_time = datetime.now()
+
+        # Calculate the time difference
+        time_difference = end_time - start_time
+        print(f"Started: {start_time}\nEnded: {end_time}\nElapsed time: {time_difference}")
+
+        # Print total progress
+        print(f"Finished outer fold repetition {rep + 1} out of {n_repetitions} for Subject {subnum}")
+
+
+def run_permutation_test(EEG_features_df, subnum, condition_params):
+    """
+    Performs permutation testing on the classification models for a given subject and condition.
+
+    :param EEG_features_df: DataFrame containing EEG features.
+    :param subnum: Integer indicating the subject number.
+    :param condition_params: Dictionary of condition parameters.
+    :return: None
+    """
+    # Load the configuration file
+    with open("config.json", "r") as file:
+        config = json.load(file)
+
+    # Access paths and settings from the configuration file
+    Model_savepath = config["paths"]["Model_savepath"]
+    Permutation_test_savepath = config["paths"]["Permutation_test_savepath"]
+    EEG_features_name_list = config["feature_names"]
+    n_repetitions = config["cross_validation"]["n_repetitions"]
+    k_out = config["cross_validation"]["k_out"]
+    k_in = config["cross_validation"]["k_in"]
+    random_state_multiplier = config["cross_validation"]["random_state_multiplier"]
+    n_feat_mRMR1 = config["feature_selection"]["n_feat_mRMR1"]
+    max_mRMR_features = config["feature_selection"]["max_mRMR_features"]
+    min_features_to_select = config["feature_selection"]["min_features_to_select"]
+    SVM_exponent_range = config["SVM"]["exponent_range"]
+    SVM_C_base = config["SVM"]["C_base"]
+    SVM_kernels = config["SVM"]["kernels"]
+    LogReg_exponent_range = config["LogReg"]["exponent_range"]
+    LogReg_C_base = config["LogReg"]["C_base"]
+    RF_trees = [int(x) for x in config["RF"]["trees"]["value"]]
+    RF_depth = [int(x) for x in config["RF"]["depth"]["value"]]
+    n_models = len(config["classifiers"])
+
+    num_permutations = config["permutation_test"]["num_permutations"]
+
+    # Load the model results for the subject
+    condition_strings = []
+    if condition_params['condition'] == '64_channels':
+        condition_strings.append('64ch')
+    elif condition_params['condition'] == '126_channels':
+        condition_strings.append('126ch')
+    
+    if condition_params.get('shuffle', False):
+        condition_strings.append('shuffled')
+
+    if condition_params.get('time_based', False):
+        condition_strings.append('time_based')
+
+    if condition_params.get('hjorth_only', False):
+        condition_strings.append('hjorth')
+
+    if condition_params.get('sensor_source', False):
+        condition_strings.append('sensor_source')
+
+    # Join the condition strings with underscores
+    condition_suffix = '_'.join(condition_strings) if condition_strings else 'default'
+
+    # Load the models with the respective condition suffix in the filename
+    load_filename = f"Sub_{subnum}_{condition_suffix}_results.pkl"
+    load_path = os.path.join(Model_savepath, load_filename)
+
+    with open(load_path, "rb") as filehandle:
+        Rep_mRMR2_SVM_LogReg_RF = pickle.load(filehandle)
+
+    # Define the target and stratification variables
+    Target = "Condition"  # The label we are trying to predict
+
+    # List of non-feature, non-target columns
+    non_feature_cols = ["Trial_index"]
+
+    # Exclude the target and any non-feature columns from standardization
+    feature_cols = [col for col in EEG_features_df.columns if col != Target and col not in non_feature_cols]
+
+    # Set a threshold for outlier detection based on the IQR method
+    threshold = 1.5  # Adjust the threshold as needed
+
+    # Calculate IQR for all features at once for the entire dataset
+    Q1 = EEG_features_df[feature_cols].quantile(0.25)
+    Q3 = EEG_features_df[feature_cols].quantile(0.75)
+    IQR = Q3 - Q1
+
+    # Define the lower and upper bounds for outlier detection
+    lower_bound = Q1 - threshold * IQR
+    upper_bound = Q3 + threshold * IQR
+
+    # Identify outliers
+    outliers_lower = EEG_features_df[feature_cols] < lower_bound
+    outliers_upper = EEG_features_df[feature_cols] > upper_bound
+
+    # Replace outliers with the appropriate bounds
+    for feature in feature_cols:
+        EEG_features_df.loc[outliers_lower[feature], feature] = lower_bound[feature]
+        EEG_features_df.loc[outliers_upper[feature], feature] = upper_bound[feature]
+
+    # Handle shuffling if not time-based classification
+    if condition_params.get('shuffle', False) and not condition_params.get('time_based', False):
+        # Shuffle the labels
+        EEG_features_df[Target] = EEG_features_df[Target].sample(frac=1, random_state=42).reset_index(drop=True)
+        print("Labels have been shuffled.")
+
+
+     # Apply Hjorth-only filtering if needed
+    if condition_params.get('hjorth_only', False):
+        EEG_features_name_list = [
+            feature for feature in config["feature_names"]
+            if "hjorth" in feature.lower()  # Convert feature name to lowercase before checking
+        ]
+
+    # Prepare Cross-Validation Splits
+    if condition_params.get('time_based', False):
+        # For time-based classification, use a single temporal split
+        n_trials = EEG_features_df.shape[0]
+        n_train_trials = int(n_trials * 0.8)  # For example, use 80% for training
+        train_indices = np.arange(n_train_trials)
+        test_indices = np.arange(n_train_trials, n_trials)
+        Outer_CV = [(train_indices, test_indices)]
+        n_repetitions = 1  # Only one repetition in time-based split
+        k_out = 1  # Only one outer fold
+        print("Using time-based CV split.")
+    else:
+        # Prepare Stratified K-Folds for all repetitions
+        Outer_CV = []
+
+        # Prepare the StratifiedKFold splits beforehand
+        for rep in range(n_repetitions):
+            skf = StratifiedKFold(n_splits=k_out, shuffle=True, random_state=rep * random_state_multiplier)
+            splits = list(skf.split(EEG_features_df[feature_cols], EEG_features_df[Target]))
+            Outer_CV.append(splits)
+        print("Using standard stratified CV splits.")
+
+    # Extract accuracy array and final features for each model
+    accuracy_arr = Rep_mRMR2_SVM_LogReg_RF[0]
+    final_features = Rep_mRMR2_SVM_LogReg_RF[3]
+
+    # Initialize a list to store permutation results for each outer fold
+    permutation_results = []
+
+    # Capture the start time
+    start_time = datetime.now()
+
+    for rep in range(n_repetitions):
+        # The outer fold CV has already been saved as lists
+        print(f"---- Starting with Outer Fold Repetition {rep + 1}")
+        if condition_params.get('time_based', False):
+            Outer_CV_rep = Outer_CV  # Only one split for time-based
+        else:
+            Outer_CV_rep = Outer_CV[rep]
+
+        overall_model_idx = 0   # Initialize the overall model index
+
+
+        # Loop through each outer fold
+        for fold_idx, (train_index, test_index) in enumerate(Outer_CV_rep):
+            print(f"Processing Fold {fold_idx+1}")
+
+            # Part 1 - Data Preparation and Standardization
+
+            # Call the data preparation and standardization function
+            X_train, X_test, y_train, y_test, scaler = prepare_and_standardize_data(
+                train_index, test_index, EEG_features_df, feature_cols, non_feature_cols, 'Condition'
+            )
+
+            # Check alignment and reset indices
+            X_train, y_train, X_test, y_test = check_alignment_and_reset_indices(X_train, y_train, X_test, y_test)
+
+            if fold_idx < len(Rep_mRMR2_SVM_LogReg_RF[2][rep]):
+                fold_models = Rep_mRMR2_SVM_LogReg_RF[2][rep][fold_idx]
+                fold_feature_info = Rep_mRMR2_SVM_LogReg_RF[3][0]
+
+                for model_idx, model_name in enumerate(['SVM', 'LogReg', 'RF']):
+                    try:
+                        model = fold_models[model_idx]
+
+                        if model_name == 'RF':
+                            # Extract the feature names used during training from the scaler
+                            model_features = model.named_steps['scaler'].feature_names_in_
+
+                            # Prepare the test data with selected features
+                            X_test_selected = X_test[model_features]
+                        else:
+                            # For SVM and LogReg, use the selected features from fold_feature_info
+                            combined_model_index = (fold_idx * len(['SVM', 'LogReg', 'RF'])) + model_idx
+                            model_features = fold_feature_info[combined_model_index][1]
+                            X_test_selected = X_test[model_features]
+
+                        # Perform permutation test
+                        permuted_scores = permutation_test(model, X_test_selected, y_test, num_permutations, n_jobs=-1)
+        
+                        # Extract the actual test accuracy for this model and fold
+                        actual_accuracy = accuracy_arr[rep, fold_idx, model_idx, 2]  # Index 2 for test accuracy
+
+                        # Calculate the p-value
+                        p_value = np.mean([score >= actual_accuracy for score in permuted_scores])
+
+                        print(f"Model: {model_name}, Fold: {fold_idx+1}, Actual Accuracy: {actual_accuracy:.2f}, P-Value: {p_value:.4f}")
+
+                        # Store the results
+                        permutation_results.append({
+                            "subject": subnum,
+                            "fold": fold_idx + 1,
+                            "model": model_name,
+                            "p_value": p_value,
+                            "permuted_scores": permuted_scores
+                        })
+
+                    except IndexError as e:
+                        print(f"IndexError encountered for {model_name} in Repetition {rep+1}, Fold {fold_idx+1}: {e}")
+            else:
+                print(f"No model data found for Repetition {rep+1}, Fold {fold_idx+1}")
+
+    # Convert the results to a DataFrame
+    permutation_results_df = pd.DataFrame(permutation_results)
+
+    # Save the results with the condition suffix in the filename
+    save_filename = f"permutation_test_{subnum}_{condition_suffix}.pkl"
+    save_path = os.path.join(Permutation_test_savepath, save_filename)
+
+    with open(save_path, "wb") as filehandle:
+        pickle.dump(permutation_results_df, filehandle)
+
+    print(f"Saved permutation test results for subject {subnum}, condition {condition_suffix}.")
+
+    # Capture the end time
+    end_time = datetime.now()
+
+    # Calculate the time difference
+    time_difference = end_time - start_time
+    print(f"Started: {start_time}\nEnded: {end_time}\nElapsed time: {time_difference}")
+
+    # Print total progress
+    print(f"Finished outer fold repetition {rep + 1} out of {n_repetitions} for Subject {subnum}")
 
 #### ML PIPELINE FUNCTIONS ####
 def create_outer_cv_splits(data, target, n_repetitions, k_out, random_state_multiplier):
@@ -899,135 +1653,30 @@ def prepare_and_standardize_data_classification_stability(train_df, test_df, fea
     return X_train_scaled, X_test_scaled, y_train, y_test, scaler
 
 
-#### OPTIONAL PLOTTING FUNCTIONS ####
-def plot_learning_curve(estimator, title, X, y, X_test, y_test, axes=None, ylim=None, cv=None,
-                        n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
-    
-    if axes is None:
-        _, axes = plt.subplots(1, 4, figsize=(20, 5))  # Changed to 1, 4 to include a fourth plot for test data
+def permutation_test(model, X_test, y_test, num_permutations=1000, n_jobs=-1):
+    """
+    Performs a permutation test to evaluate the significance of the model's prediction accuracy.
 
-    axes[0].set_title(title)
-    if ylim is not None:
-        axes[0].set_ylim(*ylim)
-    axes[0].set_xlabel("Training examples")
-    axes[0].set_ylabel("Score")
+    :param model: Trained model used for predictions.
+    :param X_test: DataFrame or array containing the features of the test set.
+    :param y_test: Series or array containing the true labels for the test set.
+    :param num_permutations: Number of times to shuffle y_test and compute the score.
+    :param n_jobs: Number of jobs for parallel processing.
+    :return: Array containing the scores for each permutation.
+    """
+    # Predict y_pred once
+    y_pred = model.predict(X_test)
+    y_pred = np.array(y_pred)
+    y_test = np.array(y_test)
 
-    train_sizes, train_scores, test_scores, fit_times, _ = \
-        learning_curve(estimator, X, y, cv=cv, n_jobs=n_jobs,
-                       train_sizes=train_sizes,
-                       return_times=True)
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.std(test_scores, axis=1)
+    # Function to compute a single permutation score
+    def compute_permutation_score(_):
+        y_test_shuffled = np.random.permutation(y_test)
+        score = np.mean(y_pred == y_test_shuffled)
+        return score
 
-    # New code to include test data performance
-    test_data_scores = []
-    for train_subset_size in train_sizes:
-        subset_indices = np.random.choice(range(X.shape[0]), train_subset_size)
-        X_train_subset = X.iloc[subset_indices]
-        y_train_subset = y.iloc[subset_indices]
-        estimator.fit(X_train_subset, y_train_subset)
-        test_data_score = estimator.score(X_test, y_test)
-        test_data_scores.append(test_data_score)
-    
-    # Plot learning curve
-    axes[0].grid()
-    axes[0].fill_between(train_sizes, train_scores_mean - train_scores_std,
-                         train_scores_mean + train_scores_std, alpha=0.1,
-                         color="r")
-    axes[0].fill_between(train_sizes, test_scores_mean - test_scores_std,
-                         test_scores_mean + test_scores_std, alpha=0.1,
-                         color="g")
-    axes[0].plot(train_sizes, train_scores_mean, 'o-', color="r",
-                 label="Training score")
-    axes[0].plot(train_sizes, test_scores_mean, 'o-', color="g",
-                 label="Cross-validation score")
-    axes[0].legend(loc="best")
-
-    # Plot n_samples vs fit_times
-    axes[1].grid()
-    axes[1].plot(train_sizes, np.mean(fit_times, axis=1), 'o-')
-    axes[1].set_xlabel("Training examples")
-    axes[1].set_ylabel("Fit times")
-    axes[1].set_title("Scalability of the model")
-
-    # Plot fit_time vs score
-    axes[2].grid()
-    axes[2].plot(np.mean(fit_times, axis=1), test_scores_mean, 'o-')
-    axes[2].set_xlabel("Fit times")
-    axes[2].set_ylabel("Score")
-    axes[2].set_title("Performance of the model")
-
-    # Plot learning curve for test data
-    axes[3].grid()
-    axes[3].plot(train_sizes, test_data_scores, 'o-', color="b", label="Test score")
-    axes[3].set_xlabel("Training examples")
-    axes[3].set_ylabel("Score")
-    axes[3].set_title("Test Data Learning Curve")
-    axes[3].legend(loc="best")
-
-    return plt
-
-def plot_feature_distributions_by_condition(X_train, y_train, X_test, y_test, selected_feature_names):
-    num_features = len(selected_feature_names)
-    fig, axes = plt.subplots(num_features, 2, figsize=(15, 5 * num_features))
-
-    # Reset indices to ensure alignment
-    X_train = X_train.reset_index(drop=True)
-    y_train = y_train.reset_index(drop=True)
-    X_test = X_test.reset_index(drop=True)
-    y_test = y_test.reset_index(drop=True)
-
-    for i, feature in enumerate(selected_feature_names):
-        # Plot for low condition
-        sns.histplot(X_train[feature][y_train == 0], ax=axes[i, 0], kde=True, color='blue', label='Train Low Condition')
-        sns.histplot(X_test[feature][y_test == 0], ax=axes[i, 0], kde=True, color='red', alpha=0.6, label='Test Low Condition')
-        axes[i, 0].set_title(f"Low Condition - {feature}")
-        axes[i, 0].legend()
-
-        # Plot for high condition
-        sns.histplot(X_train[feature][y_train == 1], ax=axes[i, 1], kde=True, color='green', label='Train High Condition')
-        sns.histplot(X_test[feature][y_test == 1], ax=axes[i, 1], kde=True, color='orange', alpha=0.6, label='Test High Condition')
-        axes[i, 1].set_title(f"High Condition - {feature}")
-        axes[i, 1].legend()
-
-    plt.tight_layout()
-    plt.show()
-
-
-# Extract feature names without condition tags
-def remove_condition_tags(feature_names):
-    return [feature.split(" (")[0] for feature in feature_names]
-
-
-def compare_distributions_conditionally(X_train, y_train, X_test, y_test, feature_name):
-    # Reset indices to ensure alignment
-    X_train = X_train.reset_index(drop=True)
-    y_train = y_train.reset_index(drop=True)
-    X_test = X_test.reset_index(drop=True)
-    y_test = y_test.reset_index(drop=True)
-
-    # Split based on condition
-    X_train_high = X_train[y_train == 1][feature_name]
-    X_train_low = X_train[y_train == 0][feature_name]
-    X_test_high = X_test[y_test == 1][feature_name]
-    X_test_low = X_test[y_test == 0][feature_name]
-
-    # Visual comparison
-    plt.figure(figsize=(12, 6))
-    sns.kdeplot(X_train_high, color="blue", label='Train High')
-    sns.kdeplot(X_train_low, color="green", label='Train Low')
-    sns.kdeplot(X_test_high, color="red", label='Test High')
-    sns.kdeplot(X_test_low, color="orange", label='Test Low')
-    plt.title(f'Feature: {feature_name} Distribution by Condition')
-    plt.legend()
-    plt.show()
-
-    # Statistical comparison
-    stat_high, p_high = ks_2samp(X_train_high, X_test_high)
-    stat_low, p_low = ks_2samp(X_train_low, X_test_low)
-    print(f"Feature: {feature_name} - High Condition, KS Statistic: {stat_high:.4f}, P-Value: {p_high:.4f}")
-    print(f"Feature: {feature_name} - Low Condition, KS Statistic: {stat_low:.4f}, P-Value: {p_low:.4f}")
-
-
+    # Use Parallel processing to compute permutation scores
+    permuted_scores = Parallel(n_jobs=n_jobs)(
+        delayed(compute_permutation_score)(i) for i in range(num_permutations)
+    )
+    return np.array(permuted_scores)
