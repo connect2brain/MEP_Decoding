@@ -2,7 +2,7 @@
 
 This repository contains MATLAB and Python code for the prediction of motor cortex excitability states (high vs. low MEP amplitude) from pre-stimulus EEG features, as described in
 
-**[Decoding Motor Excitability in TMS using EEG-Features: An Exploratory Machine Learning Approach]**
+**[Decoding Motor Excitability in TMS using EEG-Features: An Exploratory Machine Learning Approach]**(https://ieeexplore.ieee.org/document/10795227)
 
 The code is organized into two main components:
 1. **EEG Feature Extraction (MATLAB)**
